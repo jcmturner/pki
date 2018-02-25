@@ -1,7 +1,6 @@
-package pki
+package main
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -17,47 +16,31 @@ import (
 )
 
 func main() {
-	cakey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		panic(err.Error())
-	}
-	//cakeyPEM := pem.EncodeToMemory(
-	//	&pem.Block{
-	//		Type: "RSA PRIVATE KEY",
-	//		Bytes: x509.MarshalPKCS1PrivateKey(cakey),
-	//	},
-	//)
-
 	subj := pkix.Name{
 		CommonName:   "JTNET-Root-CA-1",
 		Country:      []string{"GB"},
 		Organization: []string{"JTNET"},
 	}
 	//SANs := []string{"host.test.com"}
-	caCsrPEM, err := csr(subj, []string{})
-	if err != nil {
-		panic(err.Error())
-	}
-	caCSR, err := loadCSR(caCsrPEM)
+	caCSR, cakey, err := csr(subj, []string{})
 	if err != nil {
 		panic(err.Error())
 	}
 
-	caBytes, err := createCA(caCSR, cakey, time.Hour*24*365*20)
-	//caCert, _, err := loadCert(caBytes, cakeyPEM, "")
+	caCert, err := createCA(caCSR, cakey, time.Hour*24*365*20)
 
 	// save the certificate
-	err = ioutil.WriteFile("/Users/turnerj/testca.crt", caBytes, 0644)
+	err = ioutil.WriteFile("/Users/turnerj/testca.crt", PEMEncodeCertificate(caCert), 0644)
 	if err != nil {
 		panic(err.Error())
 	}
 }
 
 // csr returns PEM encoded bytes for a CSR
-func csr(subj pkix.Name, SANs []string) ([]byte, error) {
+func csr(subj pkix.Name, SANs []string) (*x509.CertificateRequest, *rsa.PrivateKey, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return []byte{}, err
+		return &x509.CertificateRequest{}, key, err
 	}
 	var cn bool
 	for _, n := range SANs {
@@ -72,7 +55,7 @@ func csr(subj pkix.Name, SANs []string) ([]byte, error) {
 	rawSubj := subj.ToRDNSequence()
 	asn1Subj, err := asn1.Marshal(rawSubj)
 	if err != nil {
-		return []byte{}, err
+		return &x509.CertificateRequest{}, key, err
 	}
 	template := x509.CertificateRequest{
 		Version:            3,
@@ -80,10 +63,42 @@ func csr(subj pkix.Name, SANs []string) ([]byte, error) {
 		DNSNames:           SANs,
 		SignatureAlgorithm: x509.SHA256WithRSA,
 	}
-	var buf bytes.Buffer
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, key)
-	pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
-	return buf.Bytes(), nil
+	csrType, err := x509.ParseCertificateRequest(csrBytes)
+	if err != nil {
+		return &x509.CertificateRequest{}, key, err
+	}
+	if err = csrType.CheckSignature(); err != nil {
+		return &x509.CertificateRequest{}, key, err
+	}
+	return csrType, key, nil
+}
+
+func PEMEncodeCSR(csr *x509.CertificateRequest) []byte {
+	return pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "CERTIFICATE REQUEST",
+			Bytes: csr.Raw,
+		},
+	)
+}
+
+func PEMEncodeRSAPrivateKey(key *rsa.PrivateKey) []byte {
+	return pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(key),
+		},
+	)
+}
+
+func PEMEncodeCertificate(crt *x509.Certificate) []byte {
+	return pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: crt.Raw,
+		},
+	)
 }
 
 // loadCert takes the certificate and key PEM encoded bytes
@@ -134,11 +149,11 @@ func loadCSR(b []byte) (csr *x509.CertificateRequest, err error) {
 }
 
 // signCSR
-func signCSR(csr *x509.CertificateRequest, CAcrt *x509.Certificate, CAkey **rsa.PrivateKey, duration time.Duration) ([]byte, error) {
+func signCSR(csr *x509.CertificateRequest, CAcrt *x509.Certificate, CAkey *rsa.PrivateKey, duration time.Duration) (*x509.Certificate, error) {
 	snb := make([]byte, 20)
 	_, err := rand.Read(snb)
 	if err != nil {
-		return []byte{}, err
+		return &x509.Certificate{}, err
 	}
 	sn := int64(binary.BigEndian.Uint64(snb))
 	clientCRTTemplate := x509.Certificate{
@@ -162,21 +177,23 @@ func signCSR(csr *x509.CertificateRequest, CAcrt *x509.Certificate, CAkey **rsa.
 	// create certificate from template and CA
 	crtRaw, err := x509.CreateCertificate(rand.Reader, &clientCRTTemplate, CAcrt, csr.PublicKey, CAkey)
 	if err != nil {
-		return []byte{}, err
+		return &x509.Certificate{}, err
 	}
-	var buf bytes.Buffer
-	pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: crtRaw})
-	return buf.Bytes(), nil
+	crt, err := x509.ParseCertificate(crtRaw)
+	if err != nil {
+		return &x509.Certificate{}, err
+	}
+	return crt, nil
 }
 
 // createCA returns the PEM bytes of a Certificate Authority
-func createCA(csr *x509.CertificateRequest, key *rsa.PrivateKey, duration time.Duration) ([]byte, error) {
+func createCA(csr *x509.CertificateRequest, key *rsa.PrivateKey, duration time.Duration) (*x509.Certificate, error) {
 	pubBytes := x509.MarshalPKCS1PublicKey(csr.PublicKey.(*rsa.PublicKey))
 	ski := sha1.Sum(pubBytes)
 	snb := make([]byte, 20)
 	_, err := rand.Read(snb)
 	if err != nil {
-		return []byte{}, err
+		return &x509.Certificate{}, err
 	}
 	sn := int64(binary.BigEndian.Uint64(snb))
 	clientCRTTemplate := x509.Certificate{
@@ -200,9 +217,11 @@ func createCA(csr *x509.CertificateRequest, key *rsa.PrivateKey, duration time.D
 	// create certificate from template and CA
 	crtRaw, err := x509.CreateCertificate(rand.Reader, &clientCRTTemplate, &clientCRTTemplate, csr.PublicKey, key)
 	if err != nil {
-		return []byte{}, err
+		return &x509.Certificate{}, err
 	}
-	var buf bytes.Buffer
-	pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: crtRaw})
-	return buf.Bytes(), nil
+	crt, err := x509.ParseCertificate(crtRaw)
+	if err != nil {
+		return &x509.Certificate{}, err
+	}
+	return crt, nil
 }
