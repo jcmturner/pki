@@ -30,7 +30,23 @@ func main() {
 	caCert, err := createCA(caCSR, cakey, time.Hour*24*365*20)
 
 	// save the certificate
-	err = ioutil.WriteFile("/Users/turnerj/testca.crt", PEMEncodeCertificate(caCert), 0644)
+	//err = ioutil.WriteFile("/Users/turnerj/testca.crt", PEMEncodeCertificate(caCert), 0644)
+	//if err != nil {
+	//	panic(err.Error())
+	//}
+
+	subj = pkix.Name{
+		CommonName:   "www2.host.co.uk",
+		Country:      []string{"GB"},
+		Organization: []string{"JTNET"},
+	}
+	r, key, _ := csr(subj, []string{"git.host.co.uk"})
+	crt, _ := signCSR(r, caCert, cakey, time.Hour*24)
+	err = ioutil.WriteFile("/Users/turnerj/www.crt", PEMEncodeCertificate(crt), 0644)
+	if err != nil {
+		panic(err.Error())
+	}
+	err = ioutil.WriteFile("/Users/turnerj/www.key", PEMEncodeRSAPrivateKey(key), 0644)
 	if err != nil {
 		panic(err.Error())
 	}
