@@ -6,7 +6,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/kmsiface"
-	"github.com/stretchr/testify/assert"
 )
 
 type mockkms struct {
@@ -45,7 +44,9 @@ func TestKMSRand_Read(t *testing.T) {
 		if err != nil {
 			t.Errorf("Failed to read when size was %d", s)
 		}
-		assert.Equal(t, s, n, "int of bytes read not as expected")
+		if s != n {
+			t.Errorf("returned int of bytes read not as expected for test size %d", s)
+		}
 		for i := range p {
 			if p[i] != byte(1) {
 				t.Errorf("byte value at %d not as expected for size %d", i, s)
