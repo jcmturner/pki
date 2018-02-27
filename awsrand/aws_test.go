@@ -1,34 +1,23 @@
 package awsrand
 
 import (
+	"io"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/aws/aws-sdk-go-v2/service/kms/kmsiface"
+	"github.com/stretchr/testify/assert"
 )
 
-type mockkms struct {
-	kmsiface.KMSAPI
-}
-
-func (k mockkms) GenerateRandomRequest(i *kms.GenerateRandomInput) kms.GenerateRandomRequest {
-	b := make([]byte, *i.NumberOfBytes)
-	for i := range b {
-		b[i] = 1
+func TestInterface(t *testing.T) {
+	i := new(io.Reader)
+	k := KMSRand{
+		KMSsrv: MockKMS{},
 	}
-	return kms.GenerateRandomRequest{
-		Request: &aws.Request{
-			Data: &kms.GenerateRandomOutput{
-				Plaintext: b,
-			},
-		},
-	}
+	assert.Implements(t, i, k, "MockKMSRand does not implement io.Reader")
 }
 
 func TestKMSRand_Read(t *testing.T) {
 	k := KMSRand{
-		KMSsrv: mockkms{},
+		KMSsrv: MockKMSRand{},
 	}
 	var sizes = []int{
 		1024,
