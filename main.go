@@ -3,27 +3,23 @@ package main
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/asn1"
-	"encoding/binary"
-	"encoding/pem"
-	"errors"
+	"encoding/hex"
+	"fmt"
 	"io/ioutil"
-	"math/big"
 	"time"
 
-	"github.com/jcmturner/pki/awsrand"
 	"github.com/jcmturner/pki/ca"
 	"github.com/jcmturner/pki/cert"
 	"github.com/jcmturner/pki/csr"
+	"github.com/jcmturner/pki/kmsrand"
 )
 
 func main() {
 	// KMS Random number reader
-	rnd := awsrand.KMSRand{
-		KMSsrv: awsrand.MockKMS{},
+	rnd := kmsrand.Reader{
+		KMSsrv: kmsrand.MockKMS{},
 	}
 
 	// CA cert
@@ -40,11 +36,11 @@ func main() {
 
 	// Certificate generation and sign
 	subj = pkix.Name{
-		CommonName:   "www.host.co.uk",
+		CommonName:   "host.test.gokrb5",
 		Country:      []string{"GB"},
 		Organization: []string{"JTNET"},
 	}
-	r, key, _ := csr.New(subj, []string{"www2.host.co.uk"}, rnd)
+	r, key, _ := csr.New(subj, []string{"host.test.gokrb5"}, rnd)
 	crt, err := csr.Sign(r, caCert, cakey, time.Hour*24*365*2, rnd)
 	if err != nil {
 		panic(err.Error())
@@ -67,4 +63,13 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
+
+	pair, _ := rsa.GenerateKey(rand.Reader, 2048)
+
+	pubbytes := x509.MarshalPKCS1PublicKey(pair.Public().(*rsa.PublicKey))
+	pvtbytes := x509.MarshalPKCS1PrivateKey(pair)
+
+	fmt.Printf("pub %s\n", hex.EncodeToString(pubbytes))
+	fmt.Printf("pvt %s\n", hex.EncodeToString(pvtbytes))
+
 }
