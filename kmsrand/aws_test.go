@@ -1,4 +1,4 @@
-package awsrand
+package kmsrand
 
 import (
 	"io"
@@ -9,15 +9,15 @@ import (
 
 func TestInterface(t *testing.T) {
 	i := new(io.Reader)
-	k := KMSRand{
+	k := Reader{
 		KMSsrv: MockKMS{},
 	}
 	assert.Implements(t, i, k, "MockKMSRand does not implement io.Reader")
 }
 
 func TestKMSRand_Read(t *testing.T) {
-	k := KMSRand{
-		KMSsrv: MockKMSRand{},
+	k := Reader{
+		KMSsrv: MockKMS{},
 	}
 	var sizes = []int{
 		1024,
@@ -37,7 +37,7 @@ func TestKMSRand_Read(t *testing.T) {
 			t.Errorf("returned int of bytes read not as expected for test size %d", s)
 		}
 		for i := range p {
-			if p[i] != byte(1) {
+			if p[i] == byte(0) {
 				t.Errorf("byte value at %d not as expected for size %d", i, s)
 			}
 		}

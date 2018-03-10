@@ -1,6 +1,7 @@
-package awsrand
+package kmsrand
 
 import (
+	"crypto/rand"
 	"fmt"
 	"math"
 	"net/http"
@@ -14,11 +15,11 @@ import (
 
 const maxBytesPerRequest = 1024
 
-type KMSRand struct {
+type Reader struct {
 	KMSsrv kmsiface.KMSAPI
 }
 
-func (k KMSRand) randomBytes(n int64) ([]byte, error) {
+func (k Reader) randomBytes(n int64) ([]byte, error) {
 	if n > int64(maxBytesPerRequest) {
 		return []byte{}, fmt.Errorf("number of bytes requested (%d) is larger than maximum (%d)", n, maxBytesPerRequest)
 	}
@@ -33,7 +34,7 @@ func (k KMSRand) randomBytes(n int64) ([]byte, error) {
 	return out.Plaintext, nil
 }
 
-func (k KMSRand) Read(p []byte) (int, error) {
+func (k Reader) Read(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -60,12 +61,12 @@ func (k KMSRand) Read(p []byte) (int, error) {
 }
 
 // KMS returns the AWS KMS service client.
-func GetKMSRand(cl *http.Client, cmkarn arn.ARN) (KMSRand, error) {
+func GetReader(cl *http.Client, cmkarn arn.ARN) (Reader, error) {
 	cfg, err := loadAWSConfig(cl, cmkarn)
 	if err != nil {
-		return KMSRand{}, err
+		return Reader{}, err
 	}
-	return KMSRand{
+	return Reader{
 		KMSsrv: kms.New(cfg),
 	}, nil
 }
@@ -87,8 +88,12 @@ type MockKMS struct {
 
 func (k MockKMS) GenerateRandomRequest(i *kms.GenerateRandomInput) kms.GenerateRandomRequest {
 	b := make([]byte, *i.NumberOfBytes)
+	rand.Read(b)
+	// Replace any zero bytes so we can easily test all elements are set byt the random generator.
 	for i := range b {
-		b[i] = 1
+		if b[i] == byte(0) {
+			b[i] = 1
+		}
 	}
 	return kms.GenerateRandomRequest{
 		Request: &aws.Request{
