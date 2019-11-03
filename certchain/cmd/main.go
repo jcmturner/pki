@@ -21,7 +21,7 @@ func main() {
 	}
 	n, err := certchain.Write(fmt.Sprintf("%s:%d", *fqdn, *port), f)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error writing cert chain: %v\n", err)
+		fmt.Fprintf(os.Stderr, "error writing certificate chain: %v\n", err)
 		os.Exit(1)
 	}
 	if n < 1 {

@@ -1,17 +1,15 @@
 package csr
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"encoding/binary"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"io"
-	"math/big"
-	"time"
+	"os"
 )
 
 const (
@@ -57,44 +55,6 @@ func New(subj pkix.Name, SANs []string, rnd io.Reader) (*x509.CertificateRequest
 	return csrType, key, nil
 }
 
-// Sign the CSR
-func Sign(csr *x509.CertificateRequest, CAcrt *x509.Certificate, CAkey *rsa.PrivateKey, duration time.Duration, rnd io.Reader) (*x509.Certificate, error) {
-	snb := make([]byte, 20)
-	_, err := rand.Read(snb)
-	if err != nil {
-		return &x509.Certificate{}, err
-	}
-	sn := int64(binary.BigEndian.Uint64(snb))
-	clientCRTTemplate := x509.Certificate{
-		Version:            csr.Version,
-		Signature:          csr.Signature,
-		SignatureAlgorithm: csr.SignatureAlgorithm,
-
-		PublicKeyAlgorithm: csr.PublicKeyAlgorithm,
-		PublicKey:          csr.PublicKey,
-
-		SerialNumber: big.NewInt(sn),
-		Issuer:       CAcrt.Subject,
-		Subject:      csr.Subject,
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(duration),
-		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageAny, x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
-		DNSNames:     csr.DNSNames,
-		IsCA:         false,
-	}
-	// create certificate from template and CA
-	crtRaw, err := x509.CreateCertificate(rnd, &clientCRTTemplate, CAcrt, csr.PublicKey, CAkey)
-	if err != nil {
-		return &x509.Certificate{}, err
-	}
-	crt, err := x509.ParseCertificate(crtRaw)
-	if err != nil {
-		return &x509.Certificate{}, err
-	}
-	return crt, nil
-}
-
 // Load CSR from PEM encoded bytes.
 func Load(b []byte) (csr *x509.CertificateRequest, err error) {
 	pemBlock, _ := pem.Decode(b)
@@ -120,4 +80,27 @@ func PEMEncode(csr *x509.CertificateRequest) []byte {
 			Bytes: csr.Raw,
 		},
 	)
+}
+
+func Write(csr *x509.CertificateRequest, w io.Writer) error {
+	return pem.Encode(w, &pem.Block{
+		Type:  pemHeader,
+		Bytes: csr.Raw,
+	})
+}
+
+func WriteFile(csr *x509.CertificateRequest, out string) error {
+	csrOut, err := os.Create(out)
+	if err != nil {
+		return fmt.Errorf("could not create CSR file: %v", err)
+	}
+	err = Write(csr, csrOut)
+	if err != nil {
+		return fmt.Errorf("failed to write CSR data: %v", err)
+	}
+	err = csrOut.Close()
+	if err != nil {
+		return fmt.Errorf("could not close CSR file: %v", err)
+	}
+	return nil
 }

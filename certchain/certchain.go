@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"io"
 
-	"github.com/jcmturner/pki/cert"
+	"github.com/jcmturner/pki/certificate"
 )
 
 // conn establishes a connection without verifying the certificate
@@ -24,7 +24,7 @@ func Bytes(addr string) ([]byte, error) {
 	}
 	certs := conn.ConnectionState().PeerCertificates
 	for _, c := range certs {
-		b = append(b, cert.PEMEncode(c)...)
+		b = append(b, certificate.PEMEncode(c)...)
 	}
 	return b, nil
 }

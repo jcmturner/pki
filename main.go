@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/jcmturner/pki/ca"
-	"github.com/jcmturner/pki/cert"
+	"github.com/jcmturner/pki/certificate"
 	"github.com/jcmturner/pki/csr"
 	"github.com/jcmturner/pki/kmsrand"
 )
@@ -22,7 +22,7 @@ func main() {
 		KMSsrv: kmsrand.MockKMS{},
 	}
 
-	// CA cert
+	// CA certificate
 	subj := pkix.Name{
 		CommonName:   "JTNET-Root-CA-1",
 		Country:      []string{"GB"},
@@ -41,25 +41,25 @@ func main() {
 		Organization: []string{"JTNET"},
 	}
 	r, key, _ := csr.New(subj, []string{"host.test.gokrb5"}, rnd)
-	crt, err := csr.Sign(r, caCert, cakey, time.Hour*24*365*2, rnd)
+	crt, err := ca.Sign(r, caCert, cakey, time.Hour*24*365*2, rnd)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	// Write to files
-	err = ioutil.WriteFile("/Users/turnerj/ca.crt", cert.PEMEncode(caCert), 0644)
+	err = ioutil.WriteFile("/Users/turnerj/ca.crt", certificate.PEMEncode(caCert), 0644)
 	if err != nil {
 		panic(err.Error())
 	}
-	err = ioutil.WriteFile("/Users/turnerj/ca.key", cert.PEMEncodeRSAPrivateKey(cakey), 0600)
+	err = ioutil.WriteFile("/Users/turnerj/ca.key", certificate.PEMEncodeRSAPrivateKey(cakey), 0600)
 	if err != nil {
 		panic(err.Error())
 	}
-	err = ioutil.WriteFile("/Users/turnerj/www.crt", cert.PEMEncode(crt), 0644)
+	err = ioutil.WriteFile("/Users/turnerj/www.crt", certificate.PEMEncode(crt), 0644)
 	if err != nil {
 		panic(err.Error())
 	}
-	err = ioutil.WriteFile("/Users/turnerj/www.key", cert.PEMEncodeRSAPrivateKey(key), 0600)
+	err = ioutil.WriteFile("/Users/turnerj/www.key", certificate.PEMEncodeRSAPrivateKey(key), 0600)
 	if err != nil {
 		panic(err.Error())
 	}
