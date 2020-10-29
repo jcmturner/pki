@@ -2,25 +2,17 @@ package main
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/hex"
-	"fmt"
 	"io/ioutil"
 	"time"
 
 	"github.com/jcmturner/pki/ca"
 	"github.com/jcmturner/pki/certificate"
 	"github.com/jcmturner/pki/csr"
-	"github.com/jcmturner/pki/kmsrand"
 )
 
 func main() {
 	// KMS Random number reader
-	rnd := kmsrand.Reader{
-		KMSsrv: kmsrand.MockKMS{},
-	}
 
 	// CA certificate
 	subj := pkix.Name{
@@ -28,48 +20,59 @@ func main() {
 		Country:      []string{"GB"},
 		Organization: []string{"JTNET"},
 	}
-	caCSR, cakey, err := csr.New(subj, []string{}, rnd)
+	caCSR, cakey, err := csr.New(subj, []string{}, rand.Reader)
 	if err != nil {
 		panic(err.Error())
 	}
-	caCert, err := ca.New(caCSR, cakey, time.Hour*24*365*20, rnd)
+	caCert, err := ca.New(caCSR, cakey, time.Hour*24*365*20, rand.Reader)
 
 	// Certificate generation and sign
 	subj = pkix.Name{
-		CommonName:   "host.test.gokrb5",
+		CommonName:   "www.jtnet.co.uk",
 		Country:      []string{"GB"},
 		Organization: []string{"JTNET"},
 	}
-	r, key, _ := csr.New(subj, []string{"host.test.gokrb5"}, rnd)
-	crt, err := ca.Sign(r, caCert, cakey, time.Hour*24*365*2, rnd)
+	r, key, _ := csr.New(subj, []string{"www.jtnet.co.uk", "www.jtlan.co.uk"}, rand.Reader)
+	crt, err := ca.Sign(r, caCert, cakey, time.Hour*24*365*2, rand.Reader)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Certificate generation and sign
+	subj = pkix.Name{
+		CommonName:   "jtmac.jtlan.co.uk",
+		Country:      []string{"GB"},
+		Organization: []string{"JTNET"},
+	}
+	r, mackey, _ := csr.New(subj, []string{"jtmac.jtlan.co.uk"}, rand.Reader)
+	maccrt, err := ca.Sign(r, caCert, cakey, time.Hour*24*365*2, rand.Reader)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	// Write to files
-	err = ioutil.WriteFile("/Users/turnerj/ca.crt", certificate.PEMEncode(caCert), 0644)
+	err = ioutil.WriteFile("/Users/turnerj/jtca.crt", certificate.PEMEncode(caCert), 0644)
 	if err != nil {
 		panic(err.Error())
 	}
-	err = ioutil.WriteFile("/Users/turnerj/ca.key", certificate.PEMEncodeRSAPrivateKey(cakey), 0600)
+	err = ioutil.WriteFile("/Users/turnerj/jtca.key", certificate.PEMEncodeRSAPrivateKey(cakey), 0600)
 	if err != nil {
 		panic(err.Error())
 	}
-	err = ioutil.WriteFile("/Users/turnerj/www.crt", certificate.PEMEncode(crt), 0644)
+	err = ioutil.WriteFile("/Users/turnerj/jtwww.crt", certificate.PEMEncode(crt), 0644)
 	if err != nil {
 		panic(err.Error())
 	}
-	err = ioutil.WriteFile("/Users/turnerj/www.key", certificate.PEMEncodeRSAPrivateKey(key), 0600)
+	err = ioutil.WriteFile("/Users/turnerj/jtwww.key", certificate.PEMEncodeRSAPrivateKey(key), 0600)
 	if err != nil {
 		panic(err.Error())
 	}
-
-	pair, _ := rsa.GenerateKey(rand.Reader, 2048)
-
-	pubbytes := x509.MarshalPKCS1PublicKey(pair.Public().(*rsa.PublicKey))
-	pvtbytes := x509.MarshalPKCS1PrivateKey(pair)
-
-	fmt.Printf("pub %s\n", hex.EncodeToString(pubbytes))
-	fmt.Printf("pvt %s\n", hex.EncodeToString(pvtbytes))
-
+	err = ioutil.WriteFile("/Users/turnerj/jtmac.crt", certificate.PEMEncode(maccrt), 0644)
+	if err != nil {
+		panic(err.Error())
+	}
+	err = ioutil.WriteFile("/Users/turnerj/jtmac.key", certificate.PEMEncodeRSAPrivateKey(mackey), 0600)
+	if err != nil {
+		panic(err.Error())
+	}
 }

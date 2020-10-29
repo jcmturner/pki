@@ -1,6 +1,7 @@
 package kmsrand
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"math"
@@ -16,7 +17,7 @@ import (
 const maxBytesPerRequest = 1024
 
 type Reader struct {
-	KMSsrv kmsiface.KMSAPI
+	KMSsrv kmsiface.ClientAPI
 }
 
 func (k Reader) randomBytes(n int64) ([]byte, error) {
@@ -27,7 +28,7 @@ func (k Reader) randomBytes(n int64) ([]byte, error) {
 		NumberOfBytes: &n,
 	}
 	r := k.KMSsrv.GenerateRandomRequest(in)
-	out, err := r.Send()
+	out, err := r.Send(context.Background())
 	if err != nil {
 		return []byte{}, err
 	}
@@ -83,7 +84,7 @@ func loadAWSConfig(cl *http.Client, arn arn.ARN) (aws.Config, error) {
 }
 
 type MockKMS struct {
-	kmsiface.KMSAPI
+	kmsiface.ClientAPI
 }
 
 func (k MockKMS) GenerateRandomRequest(i *kms.GenerateRandomInput) kms.GenerateRandomRequest {
