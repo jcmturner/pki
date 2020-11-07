@@ -13,10 +13,14 @@ import (
 	"github.com/jcmturner/pki/csr"
 )
 
-func main() {
-	caKeyPath := os.Getenv("CA_KEY")
-	caCertPath := os.Getenv("CA_CERT")
+const (
+	hostname   = "jtlaptop.jtlan.co.uk"
+	outputdir  = "/home/turnerj/security"
+	caKeyPath  = "/home/turnerj/security/jtca.key"
+	caCertPath = "/home/turnerj/security/jtca.crt"
+)
 
+func main() {
 	caKeyFile, err := os.Open(caKeyPath)
 	if err != nil {
 		log.Fatalf("error openning CA key: %v\n", err)
@@ -40,11 +44,11 @@ func main() {
 
 	// Certificate generation and sign
 	subj := pkix.Name{
-		CommonName:   "jtserver.jtlan.co.uk",
+		CommonName:   hostname,
 		Country:      []string{"GB"},
 		Organization: []string{"JTNET"},
 	}
-	r, key, err := csr.New(subj, []string{"jtserver.jtlan.co.uk"}, rand.Reader)
+	r, key, err := csr.New(subj, []string{hostname}, rand.Reader)
 	if err != nil {
 		log.Fatalf("error creating CSR: %v\n", err)
 	}
@@ -52,11 +56,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("error signing cert: %v\n", err)
 	}
-	err = ioutil.WriteFile("/Users/turnerj/jtserver.jtlan.co.uk.pem", certificate.PEMEncode(crt), 0644)
+	err = ioutil.WriteFile(outputdir+"/"+hostname+".pem", certificate.PEMEncode(crt), 0644)
 	if err != nil {
 		panic(err.Error())
 	}
-	err = ioutil.WriteFile("/Users/turnerj/jtserver.jtlan.co.uk.key", certificate.PEMEncodeRSAPrivateKey(key), 0600)
+	err = ioutil.WriteFile(outputdir+"/"+hostname+".key", certificate.PEMEncodeRSAPrivateKey(key), 0600)
 	if err != nil {
 		panic(err.Error())
 	}
